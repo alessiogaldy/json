@@ -36,14 +36,30 @@ fn number_trailing_spaces() {
 #[test]
 fn string() {
     assert_eq!(
-        parse("\"test string\""),
+        parse(r#""test string""#),
         Ok(String("test string".to_string()))
     )
 }
 
 #[test]
+fn string_escape() {
+    assert_eq!(
+        parse(r#" "\"test string\"" "#),
+        Ok(String(r#""test string""#.to_string()))
+    )
+}
+
+#[test]
+fn string_escape_at_end_of_text() {
+    assert_eq!(
+        parse(r#""err\"#),
+        Err("no char to escape".to_string())
+    )
+}
+
+#[test]
 fn string_err() {
-    assert_eq!(parse("\"broken"), Err("invalid json string".to_string()))
+    assert_eq!(parse(r#""broken"#), Err("invalid json string".to_string()))
 }
 
 #[test]
@@ -62,16 +78,18 @@ fn array() {
 
 #[test]
 fn object() {
-    let json = "{
-            \"boolean\": false,
-            \"text\": \"text value\"
-        }";
+    let json = r#"{
+            "boolean": false,
+            "text": "text value",
+            "number": 42.42
+        }"#;
     assert_eq!(
         parse(json),
         Ok(Object({
             let mut map = HashMap::new();
             map.insert("boolean".to_string(), Bool(false));
             map.insert("text".to_string(), String("text value".to_string()));
+            map.insert("number".to_string(), Number(42.42));
             JsonObject(map)
         }))
     );
@@ -79,12 +97,12 @@ fn object() {
 
 #[test]
 fn object_with_nested_array() {
-    let json = "{
-            \"array\": [
+    let json = r#"{
+            "array": [
                 true,
                 false,
-                \"hello\"]
-        }";
+                "hello"]
+        }"#;
     assert_eq!(
         parse(json),
         Ok(Object({
@@ -100,19 +118,19 @@ fn object_with_nested_array() {
 
 #[test]
 fn nesting() {
-    let json = "{
-            \"array\": [
+    let json = r#"{
+            "array": [
                 true,
                 false,
                 {
-                    \"text\": \"this is a string\",
-                    \"nested array\": [
+                    "text": "this is a string",
+                    "nested array": [
                         null,
                         false,
                         true
                     ]
                 }]
-        }";
+        }"#;
     assert_eq!(
         parse(json),
         Ok(Object({

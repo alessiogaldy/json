@@ -35,15 +35,13 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn read_until(&mut self, delimiters: &Vec<char>) -> Option<(String, char)> {
+    fn read_until(&mut self, delimiters: &[char]) -> Option<(String, char)> {
         let (value, matched) = self.read_until_or_end(delimiters);
-        if matched.is_some() {
-            self.next().unwrap();
-        }
+        self.next();
         matched.map(|c| (value, c))
     }
 
-    fn read_until_or_end(&mut self, delimiters: &Vec<char>) -> (String, Option<char>) {
+    fn read_until_or_end(&mut self, delimiters: &[char]) -> (String, Option<char>) {
         let mut result = String::new();
         while let Some(c) = self.peek() {
             if delimiters.contains(c) {
@@ -150,9 +148,21 @@ fn parse_array(reader: &mut Reader) -> Result<Vec<Value>, String> {
 }
 
 fn parse_string(reader: &mut Reader) -> Result<String, String> {
-    match reader.read_until(&vec!['"']) {
-        Some((value, _)) => Ok(value),
-        None => Err("invalid json string".to_string()),
+    let mut result = String::new();
+    loop {
+        match reader.read_until(&vec!['"', '\\']) {
+            Some((value, '"')) => {
+                result.push_str(&value);
+                return Ok(result);
+            }
+            Some((value, '\\')) => {
+                result.push_str(&value);
+                let escaped = reader.next().ok_or_else(|| "no char to escape".to_string())?;
+                result.push(escaped)
+            },
+            Some((_, _)) => panic!(),
+            None => return Err("invalid json string".to_string()),
+        }
     }
 }
 
