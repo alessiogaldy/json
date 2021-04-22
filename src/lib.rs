@@ -69,13 +69,63 @@ impl<'a> Reader<'a> {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct JsonObject(HashMap<String, Value>);
+
+impl JsonObject {
+    pub fn take(&mut self, key: &str) -> Result<Value, String> {
+        match self.0.remove(key) {
+            Some(value) => Ok(value),
+            None => Err(format!("key {} not defined", key)),
+        }
+    }
+
+    pub fn take_string(&mut self, key: &str) -> Result<String, String> {
+        self.take(key)?.to_string()
+    }
+
+    pub fn take_object(&mut self, key: &str) -> Result<Self, String> {
+        self.take(key)?.to_object()
+    }
+
+    pub fn take_number(&mut self, key: &str) -> Result<f64, String> {
+        self.take(key)?.to_number()
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Value {
     Null,
     Bool(bool),
     Number(f64),
     String(String),
     Array(Vec<Value>),
-    Object(HashMap<String, Value>),
+    Object(JsonObject),
+}
+
+impl Value {
+    pub fn to_object(self) -> Result<JsonObject, String> {
+        if let Value::Object(object) = self {
+            Ok(object)
+        } else {
+            Err("not a json object".to_string())
+        }
+    }
+
+    pub fn to_string(self) -> Result<String, String> {
+        if let Value::String(value) = self {
+            return Ok(value);
+        } else {
+            Err("not a json string".to_string())
+        }
+    }
+
+    pub fn to_number(self) -> Result<f64, String> {
+        if let Value::Number(value) = self {
+            return Ok(value);
+        } else {
+            Err("not a json number".to_string())
+        }
+    }
 }
 
 fn parse_array(reader: &mut Reader) -> Result<Vec<Value>, String> {
@@ -158,7 +208,7 @@ fn parse_object(reader: &mut Reader) -> Result<HashMap<String, Value>, String> {
 
 fn parse_number(reader: &mut Reader) -> Result<f64, String> {
     let (raw, _) = reader.read_until_or_end(&vec![',', ']', '}']);
-    raw.parse()
+    raw.trim().parse()
         .map_err(|_| format!("{} is not a valid number", raw))
 }
 
@@ -175,7 +225,7 @@ fn parse_value(reader: &mut Reader) -> Result<Value, String> {
             reader.next().unwrap();
             parse_string(reader).map(Value::String)
         }
-        Some('{') => parse_object(reader).map(Value::Object),
+        Some('{') => parse_object(reader).map(JsonObject).map(Value::Object),
         Some(c) if *c == '+' || *c == '-' || c.is_digit(10) => {
             parse_number(reader).map(Value::Number)
         }
@@ -183,8 +233,23 @@ fn parse_value(reader: &mut Reader) -> Result<Value, String> {
     };
 }
 
-pub fn parse(raw: &str) -> Result<Value, String> {
-    let reader = &mut Reader::new(raw);
+/// # Examples
+///
+/// ```
+///# fn main() -> Result<(),String> {
+///let text = "{ \"user\": { \"name\": \"John Smith\", \"age\": 42 }}";
+///
+///let mut user = json::parse(text)?
+///     .to_object()?
+///     .take_object("user")?;
+///
+///assert_eq!(user.take_string("name")?, "John Smith");
+///assert_eq!(user.take_number("age")?, 42.0);
+///# Ok(())
+///# }
+/// ```
+pub fn parse<'a, S: Into<&'a str>>(raw: S) -> Result<Value, String> {
+    let reader = &mut Reader::new(raw.into());
     let value = parse_value(reader)?;
     if reader.skip_whitespaces() {
         return Err("unexpected text after value".to_string());

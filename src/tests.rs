@@ -1,3 +1,4 @@
+use crate::JsonObject;
 
 use super::{parse, Value::*};
 use std::collections::HashMap;
@@ -24,6 +25,12 @@ fn number() {
     assert_eq!(parse("42.42"), Ok(Number(42.42)));
     assert_eq!(parse("-42"), Ok(Number(-42.0)));
     assert_eq!(parse("+42"), Ok(Number(42.0)));
+    assert_eq!(parse("1e-005"), Ok(Number(0.00001)))
+}
+
+#[test]
+fn number_trailing_spaces() {
+    assert_eq!(parse("42  "), Ok(Number(42.0)));
 }
 
 #[test]
@@ -65,7 +72,7 @@ fn object() {
             let mut map = HashMap::new();
             map.insert("boolean".to_string(), Bool(false));
             map.insert("text".to_string(), String("text value".to_string()));
-            map
+            JsonObject(map)
         }))
     );
 }
@@ -86,7 +93,7 @@ fn object_with_nested_array() {
                 "array".to_string(),
                 Array(vec![Bool(true), Bool(false), String("hello".to_string())]),
             );
-            map
+            JsonObject(map)
         }))
     );
 }
@@ -122,11 +129,11 @@ fn nesting() {
                             "nested array".to_string(),
                             Array(vec![Null, Bool(false), Bool(true)]),
                         );
-                        map
+                        JsonObject(map)
                     }),
                 ]),
             );
-            map
+            JsonObject(map)
         }))
     );
 }
