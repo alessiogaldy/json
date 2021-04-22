@@ -202,7 +202,7 @@ mod tests {
     #[test]
     fn bool() {
         assert_eq!(parse("true"), Ok(Bool(true)));
-        assert_eq!(parse("false"), Ok(Bool(true)));
+        assert_eq!(parse("false"), Ok(Bool(false)));
     }
 
     #[test]
