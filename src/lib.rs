@@ -1,14 +1,17 @@
-use core::f64;
-use std::{collections::HashMap, iter::{Peekable}, str::Chars};
+#[cfg(test)]
+mod tests;
 
-struct Reader<'a>{
-    chars: Peekable<Chars<'a>>
+use core::f64;
+use std::{collections::HashMap, iter::Peekable, str::Chars};
+
+struct Reader<'a> {
+    chars: Peekable<Chars<'a>>,
 }
 
 impl<'a> Reader<'a> {
     fn new(raw: &'a str) -> Self {
         Self {
-            chars: raw.chars().peekable()
+            chars: raw.chars().peekable(),
         }
     }
 
@@ -23,9 +26,11 @@ impl<'a> Reader<'a> {
     fn skip_whitespaces(&mut self) -> bool {
         loop {
             match self.peek() {
-                Some(c) if c.is_whitespace() => {self.next();},
+                Some(c) if c.is_whitespace() => {
+                    self.next();
+                }
                 None => return false,
-                _ => return true
+                _ => return true,
             }
         }
     }
@@ -42,7 +47,7 @@ impl<'a> Reader<'a> {
         let mut result = String::new();
         while let Some(c) = self.peek() {
             if delimiters.contains(c) {
-                return (result, Some(c.to_owned()))
+                return (result, Some(c.to_owned()));
             }
             result.push(self.next().unwrap())
         }
@@ -84,7 +89,7 @@ fn parse_array(reader: &mut Reader) -> Result<Vec<Value>, String> {
     let mut values = Vec::new();
     loop {
         values.push(parse_value(reader)?);
-        if let Some(c) = reader.skip_until(&vec![',', ']'])     {
+        if let Some(c) = reader.skip_until(&vec![',', ']']) {
             if c == ']' {
                 return Ok(values);
             }
@@ -97,7 +102,7 @@ fn parse_array(reader: &mut Reader) -> Result<Vec<Value>, String> {
 fn parse_string(reader: &mut Reader) -> Result<String, String> {
     match reader.read_until(&vec!['"']) {
         Some((value, _)) => Ok(value),
-        None => Err("invalid json string".to_string())
+        None => Err("invalid json string".to_string()),
     }
 }
 
@@ -129,7 +134,7 @@ fn parse_object(reader: &mut Reader) -> Result<HashMap<String, Value>, String> {
     reader.next().unwrap();
     let mut value = HashMap::new();
 
-    while let Some(delimiter) = reader.skip_until(&vec!['"','}']) {
+    while let Some(delimiter) = reader.skip_until(&vec!['"', '}']) {
         if delimiter == '}' {
             return Ok(value);
         }
@@ -153,7 +158,8 @@ fn parse_object(reader: &mut Reader) -> Result<HashMap<String, Value>, String> {
 
 fn parse_number(reader: &mut Reader) -> Result<f64, String> {
     let (raw, _) = reader.read_until_or_end(&vec![',', ']', '}']);
-    raw.parse().map_err(|_| format!("{} is not a valid number", raw))
+    raw.parse()
+        .map_err(|_| format!("{} is not a valid number", raw))
 }
 
 fn parse_value(reader: &mut Reader) -> Result<Value, String> {
@@ -168,11 +174,13 @@ fn parse_value(reader: &mut Reader) -> Result<Value, String> {
         Some('"') => {
             reader.next().unwrap();
             parse_string(reader).map(Value::String)
-        },
+        }
         Some('{') => parse_object(reader).map(Value::Object),
-        Some(c) if *c == '+' || *c == '-' || c.is_digit(10) => parse_number(reader).map(Value::Number),
-        _ => Err("malformed json".to_string())
-    }
+        Some(c) if *c == '+' || *c == '-' || c.is_digit(10) => {
+            parse_number(reader).map(Value::Number)
+        }
+        _ => Err("malformed json".to_string()),
+    };
 }
 
 pub fn parse(raw: &str) -> Result<Value, String> {
@@ -182,129 +190,4 @@ pub fn parse(raw: &str) -> Result<Value, String> {
         return Err("unexpected text after value".to_string());
     }
     Ok(value)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{parse, Value::*};
-    use std::collections::HashMap;
-
-    #[test]
-    fn null() {
-        assert_eq!(parse("null"), Ok(Null));
-    }
-
-    #[test]
-    fn null_err() {
-        assert_eq!(parse("nulz"), Err("expected null".to_string()));
-    }
-
-    #[test]
-    fn bool() {
-        assert_eq!(parse("true"), Ok(Bool(true)));
-        assert_eq!(parse("false"), Ok(Bool(false)));
-    }
-
-    #[test]
-    fn number() {
-        assert_eq!(parse("42"), Ok(Number(42.0)));
-        assert_eq!(parse("42.42"), Ok(Number(42.42)));
-        assert_eq!(parse("-42"), Ok(Number(-42.0)));
-        assert_eq!(parse("+42"), Ok(Number(42.0)));
-    }
-
-    #[test]
-    fn string() {
-        assert_eq!(parse("\"test string\""), Ok(String("test string".to_string())))
-    }
-
-    #[test]
-    fn string_err() {
-        assert_eq!(parse("\"broken"), Err("invalid json string".to_string()))
-    }
-
-    #[test]
-    fn array() {
-        assert_eq!(parse("[null, true, false, 42.42, \"this is a string\"]"), Ok(Array(vec![
-            Null,
-            Bool(true),
-            Bool(false),
-            Number(42.42),
-            String("this is a string".to_string()),
-        ])));
-    }
-
-    #[test]
-    fn object() {
-        let json = "{
-            \"boolean\": false,
-            \"text\": \"text value\"
-        }";
-        assert_eq!(parse(json), Ok(Object({
-            let mut map = HashMap::new();
-            map.insert("boolean".to_string(), Bool(false));
-            map.insert("text".to_string(), String("text value".to_string()));
-            map
-        })));
-    }
-
-    #[test]
-    fn object_with_nested_array() {
-        let json = "{
-            \"array\": [
-                true,
-                false,
-                \"hello\"]
-        }";
-        assert_eq!(parse(json), Ok(Object({
-            let mut map = HashMap::new();
-            map.insert("array".to_string(), Array(vec![
-                Bool(true),
-                Bool(false),
-                String("hello".to_string()),
-            ]));
-            map
-        })));
-    }
-
-    #[test]
-    fn nesting() {
-        let json = "{
-            \"array\": [
-                true,
-                false,
-                {
-                    \"text\": \"this is a string\",
-                    \"nested array\": [
-                        null,
-                        false,
-                        true
-                    ]
-                }]
-        }";
-        assert_eq!(parse(json), Ok(Object({
-            let mut map = HashMap::new();
-            map.insert("array".to_string(), Array(vec![
-                Bool(true),
-                Bool(false),
-                Object({
-                    let mut map = HashMap::new();
-                    map.insert("text".to_string(), String("this is a string".to_string()));
-                    map.insert("nested array".to_string(), Array(vec![
-                        Null,
-                        Bool(false),
-                        Bool(true),
-                    ]));
-                    map
-                }),
-            ]));
-            map
-        })));
-    }
-
-    #[test]
-    fn unexpected_text_after() {
-        let json = "[null] invalid";
-        assert_eq!(parse(json), Err("unexpected text after value".to_string()))
-    }
 }
